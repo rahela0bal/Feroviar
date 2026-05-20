@@ -173,3 +173,43 @@ BEGIN
     ORDER BY rs.ordine ASC;
 END;
 $$ LANGUAGE plpgsql;
+
+
+-- CREEAZA VIEW-URILE --
+
+
+-- =========================================================================
+-- VIEW 1: rute_complete
+-- Afișează structura detaliată a fiecărei rute cu stațiile aferente, ordonate
+-- =========================================================================
+
+CREATE OR REPLACE VIEW rute_complete AS
+SELECT 
+    r.id_ruta,
+    r.nume AS nume_ruta,
+    rs.ordine,
+    s.nume AS nume_statie,
+    s.oras,
+    rs.distanta_fata_de_inceput
+FROM rute r
+INNER JOIN ruta_statii rs ON r.id_ruta = rs.id_ruta
+INNER JOIN statii s ON rs.id_statie = s.id_statie
+ORDER BY r.id_ruta, rs.ordine ASC;
+
+
+-- =========================================================================
+-- VIEW 2: trenuri_active_pe_rute
+-- Afișează doar trenurile cu statusul 'activ' și rutele pe care sunt programate
+-- =========================================================================
+
+CREATE OR REPLACE VIEW trenuri_active_pe_rute AS
+SELECT DISTINCT
+    t.id_tren,
+    t.tip AS tip_tren,
+    t.capacitate,
+    r.id_ruta,
+    r.nume AS nume_ruta
+FROM trenuri t
+INNER JOIN circulatii c ON t.id_tren = c.id_tren
+INNER JOIN rute r ON c.id_ruta = r.id_ruta
+WHERE t.status = 'activ';
