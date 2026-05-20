@@ -5,65 +5,314 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Feroviar - Management Feroviar</title>
     <link rel="stylesheet" href="style.css" />
+    <style>
+      body {
+        font-family: sans-serif;
+        margin: 20px;
+        background-color: #f8fafc;
+        color: #334155;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+        background: white;
+      }
+      th,
+      td {
+        border: 1px solid #cbd5e1;
+        padding: 10px;
+        text-align: left;
+      }
+      th {
+        background-color: #f1f5f9;
+      }
+      form {
+        background: #ffffff;
+        padding: 15px;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        margin-bottom: 20px;
+        max-width: 400px;
+      }
+      .form-group {
+        margin-bottom: 10px;
+      }
+      .form-group label {
+        display: block;
+        font-weight: bold;
+        margin-bottom: 5px;
+      }
+      .form-group input,
+      .form-group select {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #cbd5e1;
+        border-radius: 4px;
+        box-sizing: border-box;
+      }
+      button {
+        padding: 6px 12px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: bold;
+        margin-right: 5px;
+      }
+      .btn-add {
+        background-color: #10b981;
+        color: white;
+      }
+      .btn-edit {
+        background-color: #3b82f6;
+        color: white;
+      }
+      .btn-delete {
+        background-color: #ef4444;
+        color: white;
+      }
+      .btn-cancel {
+        background-color: #64748b;
+        color: white;
+      }
+      .flex-container {
+        display: flex;
+        gap: 40px;
+        align-items: flex-start;
+      }
+      .form-section {
+        flex: 1;
+        max-width: 400px;
+      }
+      .table-section {
+        flex: 2;
+      }
+    </style>
   </head>
   <body>
     <div id="app">
       <h1>Sistem Management Feroviar</h1>
-      <div
-        style="
-          padding: 10px;
-          background-color: #e2e8f0;
-          border-radius: 5px;
-          display: inline-block;
-          margin-bottom: 20px;
-        "
-      >
-        <p>{{ statusMessage }}</p>
+
+      <h2>Gestionare Stații Feroviare</h2>
+
+      <div class="flex-container">
+        <div class="form-section">
+          <h3 v-if="esteEditare">
+            Editează Stația (ID: {{ formular.id_statie }})
+          </h3>
+          <h3 v-else>Adaugă Stație Nouă</h3>
+
+          <form @submit.prevent="salveazaStatie">
+            <div class="form-group">
+              <label>Nume Stație:</label>
+              <input
+                type="text"
+                v-model="formular.nume"
+                required
+                placeholder="Ex: Gara de Nord"
+              />
+            </div>
+            <div class="form-group">
+              <label>Oraș:</label>
+              <input
+                type="text"
+                v-model="formular.oras"
+                placeholder="Ex: București"
+              />
+            </div>
+            <div class="form-group">
+              <label>Tip Stație:</label>
+              <select v-model="formular.tip" required>
+                <option value="intermediara">Intermediară</option>
+                <option value="terminala">Terminală</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Număr Linii:</label>
+              <input
+                type="number"
+                v-model.number="formular.numar_linii"
+                min="1"
+                required
+              />
+            </div>
+
+            <button type="submit" class="btn-add" v-if="!esteEditare">
+              Adaugă Stație
+            </button>
+            <template v-else>
+              <button type="submit" class="btn-edit">
+                Salvează Modificările
+              </button>
+              <button type="button" class="btn-cancel" @click="anuleazaEditare">
+                Anulează
+              </button>
+            </template>
+          </form>
+
+          <p v-if="mesaj" style="color: #2563eb; font-weight: bold">
+            {{ mesaj }}
+          </p>
+        </div>
+
+        <div class="table-section">
+          <h3>Listă Stații Existente</h3>
+          <p v-if="statii.length === 0">
+            Nu există stații în baza de date sau se încarcă...
+          </p>
+          <table v-else>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Nume</th>
+                <th>Oraș</th>
+                <th>Tip</th>
+                <th>Linii</th>
+                <th>Acțiuni</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="statie in statii" :key="statie.id_statie">
+                <td>{{ statie.id_statie }}</td>
+                <td>{{ statie.nume }}</td>
+                <td>{{ statie.oras || '-' }}</td>
+                <td>{{ statie.tip }}</td>
+                <td>{{ statie.numar_linii }}</td>
+                <td>
+                  <button class="btn-edit" @click="incarcaInFormular(statie)">
+                    Editează
+                  </button>
+                  <button
+                    class="btn-delete"
+                    @click="stergeStatie(statie.id_statie)"
+                  >
+                    Șterge
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
-      <p>
-        Verifică consola browserului (apasă F12) pentru a vedea datele din
-        tabela <strong>statii</strong>.
-      </p>
     </div>
 
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
     <script>
       const SUPABASE_URL = "https://pllefrwkahajaybvusan.supabase.co";
-      const SUPABASE_ANON_KEY =
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsbGVmcndrYWhhamF5YnZ1c2FuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyODA4MjIsImV4cCI6MjA5NDg1NjgyMn0.cCG1N76nE1AVvrfZnlSvUnCsYEPcuwyL66Q6VKaVttU";
+      // AICI AM PUS NOUA CHEIE PRIMITĂ DE LA FETE
+      const SUPABASE_SERVICE_KEY =
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsbGVmcndrYWhhamF5YnZ1c2FuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTI4MDgyMiwiZXhwIjoyMDk0ODU2ODIyfQ.bDvGzkyjbbawcYxmmTRu8s-wZSTD38pO4V6biR15hOE";
 
-      // AM MODIFICAT AICI: Am redenumit în supabaseClient ca să nu se mai bată în cap cu librăria
       const supabaseClient = supabase.createClient(
         SUPABASE_URL,
-        SUPABASE_ANON_KEY,
+        SUPABASE_SERVICE_KEY,
       );
 
       const { createApp, ref, onMounted } = Vue;
 
       createApp({
         setup() {
-          const statusMessage = ref("Se încarcă conexiunea cu Supabase...");
+          const statii = ref([]);
+          const mesaj = ref("");
+          const esteEditare = ref(false);
+
+          const formular = ref({
+            id_statie: null,
+            nume: "",
+            oras: "",
+            tip: "intermediara",
+            numar_linii: 1,
+          });
 
           const incarcaStatii = async () => {
             try {
-              // AM MODIFICAT ȘI AICI: Folosim noul nume supabaseClient
               let { data, error } = await supabaseClient
                 .from("statii")
-                .select("*");
+                .select("*")
+                .order("id_statie", { ascending: true });
+              if (error) throw error;
+              statii.value = data;
+            } catch (err) {
+              mesaj.value = "Eroare la încărcare: " + err.message;
+            }
+          };
+
+          const resetFormular = () => {
+            formular.value = {
+              id_statie: null,
+              nume: "",
+              oras: "",
+              tip: "intermediara",
+              numar_linii: 1,
+            };
+            esteEditare.value = false;
+          };
+
+          const salveazaStatie = async () => {
+            try {
+              mesaj.value = "Se salvează...";
+
+              if (esteEditare.value) {
+                const { error } = await supabaseClient
+                  .from("statii")
+                  .update({
+                    nume: formular.value.nume,
+                    oras: formular.value.oras,
+                    tip: formular.value.tip,
+                    numar_linii: formular.value.numar_linii,
+                  })
+                  .eq("id_statie", formular.value.id_statie);
+
+                if (error) throw error;
+                mesaj.value = "Stație actualizată cu succes!";
+              } else {
+                const { error } = await supabaseClient.from("statii").insert([
+                  {
+                    nume: formular.value.nume,
+                    oras: formular.value.oras,
+                    tip: formular.value.tip,
+                    numar_linii: formular.value.numar_linii,
+                  },
+                ]);
+
+                if (error) throw error;
+                mesaj.value = "Stație adăugată cu succes!";
+              }
+
+              resetFormular();
+              await incarcaStatii();
+            } catch (err) {
+              mesaj.value = "Eroare la salvare: " + err.message;
+            }
+          };
+
+          const incarcaInFormular = (statie) => {
+            formular.value = { ...statie };
+            esteEditare.value = true;
+          };
+
+          const anuleazaEditare = () => {
+            resetFormular();
+            mesaj.value = "Editare herulată.";
+          };
+
+          const stergeStatie = async (id) => {
+            if (!confirm("Sigur vrei să ștergi această stație?")) return;
+            try {
+              mesaj.value = "Se șterge...";
+              const { error } = await supabaseClient
+                .from("statii")
+                .delete()
+                .eq("id_statie", id);
 
               if (error) throw error;
 
-              console.log("=== STATII DIN SUPABASE ===");
-              console.table(data);
-              statusMessage.value =
-                "Conexiune reușită! Datele au fost încărcate în consolă.";
+              mesaj.value = "Stație ștearsă cu succes!";
+              await incarcaStatii();
             } catch (err) {
-              console.error("Eroare la conectarea cu Supabase:", err.message);
-              statusMessage.value =
-                "Eroare la încărcarea datelor: " + err.message;
+              mesaj.value = "Eroare la ștergere: " + err.message;
             }
           };
 
@@ -72,7 +321,14 @@
           });
 
           return {
-            statusMessage,
+            statii,
+            formular,
+            mesaj,
+            esteEditare,
+            salveazaStatie,
+            incarcaInFormular,
+            anuleazaEditare,
+            stergeStatie,
           };
         },
       }).mount("#app");
