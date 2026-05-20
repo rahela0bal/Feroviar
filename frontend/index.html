@@ -1,26 +1,81 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ro">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Feroviar - Management Feroviar</title>
-  <link rel="stylesheet" href="style.css" />
-  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-</head>
-<body>
-  <div id="app">
-    <h1>Sistem Management Feroviar</h1>
-  </div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Feroviar - Management Feroviar</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <h1>Sistem Management Feroviar</h1>
+      <div
+        style="
+          padding: 10px;
+          background-color: #e2e8f0;
+          border-radius: 5px;
+          display: inline-block;
+          margin-bottom: 20px;
+        "
+      >
+        <p>{{ statusMessage }}</p>
+      </div>
+      <p>
+        Verifică consola browserului (apasă F12) pentru a vedea datele din
+        tabela <strong>statii</strong>.
+      </p>
+    </div>
 
-  <script>
-    const { createApp } = Vue;
-    createApp({
-      data() {
-        return {
-          mesaj: 'Bun venit!'
-        };
-      }
-    }).mount('#app');
-  </script>
-</body>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+
+    <script>
+      const SUPABASE_URL = "https://pllefrwkahajaybvusan.supabase.co";
+      const SUPABASE_ANON_KEY =
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsbGVmcndrYWhhamF5YnZ1c2FuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyODA4MjIsImV4cCI6MjA5NDg1NjgyMn0.cCG1N76nE1AVvrfZnlSvUnCsYEPcuwyL66Q6VKaVttU";
+
+      // AM MODIFICAT AICI: Am redenumit în supabaseClient ca să nu se mai bată în cap cu librăria
+      const supabaseClient = supabase.createClient(
+        SUPABASE_URL,
+        SUPABASE_ANON_KEY,
+      );
+
+      const { createApp, ref, onMounted } = Vue;
+
+      createApp({
+        setup() {
+          const statusMessage = ref("Se încarcă conexiunea cu Supabase...");
+
+          const incarcaStatii = async () => {
+            try {
+              // AM MODIFICAT ȘI AICI: Folosim noul nume supabaseClient
+              let { data, error } = await supabaseClient
+                .from("statii")
+                .select("*");
+
+              if (error) throw error;
+
+              console.log("=== STATII DIN SUPABASE ===");
+              console.table(data);
+              statusMessage.value =
+                "Conexiune reușită! Datele au fost încărcate în consolă.";
+            } catch (err) {
+              console.error("Eroare la conectarea cu Supabase:", err.message);
+              statusMessage.value =
+                "Eroare la încărcarea datelor: " + err.message;
+            }
+          };
+
+          onMounted(() => {
+            incarcaStatii();
+          });
+
+          return {
+            statusMessage,
+          };
+        },
+      }).mount("#app");
+    </script>
+  </body>
 </html>
