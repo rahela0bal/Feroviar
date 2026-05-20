@@ -16,13 +16,19 @@ Aplicatie web pentru managementul retelei feroviare: gestionarea statiilor, tren
 
 ---
 
+## Configurare Supabase
+
+- **URL:** `https://pllefrwkahajaybvusan.supabase.co`
+
+---
+
 ## Status task-uri
 
 | Task                              | Status |
 |-----------------------------------|--------|
-| Initializare proiect              | ❌ Neinceput |
+| Initializare proiect              | ✅ Completat |
 | Definire schema baza de date      | ✅ Completat |
-| Populare date initiale (seed)     | ✅ Completat|
+| Populare date initiale (seed)     | ✅ Completat |
 | Configurare Supabase              | ✅ Completat |
 | Componenta: Lista statii          | ❌ Neinceput |
 | Componenta: Lista trenuri         | ❌ Neinceput |
@@ -36,58 +42,59 @@ Aplicatie web pentru managementul retelei feroviare: gestionarea statiilor, tren
 ## Schema tabelelor
 
 ### `statii`
-| Coloana       | Tip                              | Constrangeri         |
-|---------------|----------------------------------|----------------------|
-| id_statie     | SERIAL                           | PRIMARY KEY          |
-| nume          | VARCHAR(100)                     | NOT NULL             |
-| oras          | VARCHAR(100)                     | NOT NULL             |
-| tip           | ENUM('terminala','intermediara') | NOT NULL             |
-| numar_linii   | INTEGER                          | NOT NULL, CHECK > 0  |
+| Coloana     | Tip          | Constrangeri                                      |
+|-------------|--------------|---------------------------------------------------|
+| id_statie   | SERIAL       | PRIMARY KEY                                       |
+| nume        | VARCHAR(255) | NOT NULL                                          |
+| oras        | VARCHAR(255) |                                                   |
+| tip         | VARCHAR(50)  | NOT NULL, CHECK IN ('terminala', 'intermediara')  |
+| numar_linii | INT          | NOT NULL, CHECK > 0                               |
 
 ---
 
 ### `trenuri`
-| Coloana    | Tip                                          | Constrangeri        |
-|------------|----------------------------------------------|---------------------|
-| id_tren    | SERIAL                                       | PRIMARY KEY         |
-| tip        | ENUM('regional','intercity','tramvai')        | NOT NULL            |
-| capacitate | INTEGER                                      | NOT NULL, CHECK > 0 |
-| status     | ENUM('activ','in_mentenanta')                | NOT NULL            |
+| Coloana    | Tip         | Constrangeri                                          |
+|------------|-------------|-------------------------------------------------------|
+| id_tren    | SERIAL      | PRIMARY KEY                                           |
+| tip        | VARCHAR(50) | NOT NULL, CHECK IN ('regional', 'intercity', 'tramvai') |
+| capacitate | INT         | NOT NULL, CHECK > 0                                   |
+| status     | VARCHAR(50) | NOT NULL, CHECK IN ('activ', 'in_mentenanta')         |
 
 ---
 
 ### `rute`
-| Coloana        | Tip                        | Constrangeri          |
-|----------------|----------------------------|-----------------------|
-| id_ruta        | SERIAL                     | PRIMARY KEY           |
-| nume           | VARCHAR(150)               | NOT NULL, UNIQUE      |
-| lungime_totala | NUMERIC(8,2)               | NOT NULL              |
-| tip            | ENUM('feroviar','urban')   | NOT NULL              |
+| Coloana        | Tip          | Constrangeri                             |
+|----------------|--------------|------------------------------------------|
+| id_ruta        | SERIAL       | PRIMARY KEY                              |
+| nume           | VARCHAR(255) | NOT NULL, UNIQUE                         |
+| lungime_totala | NUMERIC      | DEFAULT 0                                |
+| tip            | VARCHAR(50)  | NOT NULL, CHECK IN ('feroviar', 'urban') |
 
 ---
 
 ### `ruta_statii` *(relatie N-M cu atribute — cea mai importanta)*
-| Coloana                  | Tip          | Constrangeri                        |
-|--------------------------|--------------|-------------------------------------|
-| id                       | SERIAL       | PRIMARY KEY                         |
-| id_ruta                  | INTEGER      | NOT NULL, FK → rute(id_ruta)        |
-| id_statie                | INTEGER      | NOT NULL, FK → statii(id_statie)    |
-| ordine                   | INTEGER      | NOT NULL, CHECK > 0                 |
-| distanta_fata_de_inceput | NUMERIC(8,2) | NOT NULL                            |
+| Coloana                  | Tip     | Constrangeri                                       |
+|--------------------------|---------|----------------------------------------------------|
+| id                       | SERIAL  | PRIMARY KEY                                        |
+| id_ruta                  | INT     | NOT NULL, FK → rute(id_ruta) ON DELETE CASCADE     |
+| id_statie                | INT     | NOT NULL, FK → statii(id_statie) ON DELETE RESTRICT |
+| ordine                   | INT     | NOT NULL, CHECK > 0                                |
+| distanta_fata_de_inceput | NUMERIC |                                                    |
 
-> UNIQUE(id_ruta, id_statie) — o statie apare o singura data pe aceeasi ruta.
-> UNIQUE(id_ruta, ordine) — ordinea este unica per ruta.
+Constrangeri compuse:
+- `UNIQUE(id_ruta, ordine)` — ordinea este unica per ruta
+- `UNIQUE(id_ruta, id_statie)` — o statie apare o singura data pe aceeasi ruta
 
 ---
 
 ### `circulatii`
-| Coloana         | Tip     | Constrangeri                          |
-|-----------------|---------|---------------------------------------|
-| id_circulatie   | SERIAL  | PRIMARY KEY                           |
-| id_tren         | INTEGER | NOT NULL, FK → trenuri(id_tren)       |
-| id_ruta         | INTEGER | NOT NULL, FK → rute(id_ruta)          |
-| ora_plecare     | TIME    | NOT NULL                              |
-| ora_sosire      | TIME    | NOT NULL                              |
+| Coloana       | Tip    | Constrangeri                                      |
+|---------------|--------|---------------------------------------------------|
+| id_circulatie | SERIAL | PRIMARY KEY                                       |
+| id_tren       | INT    | NOT NULL, FK → trenuri(id_tren) ON DELETE RESTRICT |
+| id_ruta       | INT    | NOT NULL, FK → rute(id_ruta) ON DELETE RESTRICT   |
+| ora_plecare   | TIME   | NOT NULL                                          |
+| ora_sosire    | TIME   | NOT NULL                                          |
 
 ---
 
@@ -98,13 +105,28 @@ trenuri ──< circulatii                (1-N: un tren are multe circulatii)
 rute    ──< circulatii                (1-N: o ruta are multe circulatii)
 ```
 
-### Constrangeri importante
-- `capacitate > 0` pe tabela `trenuri`
-- `numar_linii > 0` pe tabela `statii`
-- `UNIQUE(nume)` pe tabela `rute`
-- `ordine > 0` pe tabela `ruta_statii`
-- `UNIQUE(id_ruta, ordine)` pe tabela `ruta_statii`
-- `UNIQUE(id_ruta, id_statie)` pe tabela `ruta_statii`
+---
+
+## Triggere
+
+| Trigger | Tabel | Eveniment | Descriere |
+|---|---|---|---|
+| `trg_previne_stergere_statie` | `statii` | BEFORE DELETE | Blocheaza stergerea unei statii folosite intr-o ruta |
+| `trg_actualizeaza_lungime_ruta` | `ruta_statii` | AFTER INSERT / UPDATE | Recalculeaza automat `lungime_totala` in `rute` |
+
+## Functii stocate
+
+| Functie | Parametru | Returneaza | Descriere |
+|---|---|---|---|
+| `calculeaza_lungime_ruta` | `p_id_ruta INT` | `NUMERIC` | Lungimea totala a unei rute (MAX distanta) |
+| `listeaza_statii_ruta` | `p_id_ruta INT` | `TABLE` | Statiile unei rute in ordine crescatoare |
+
+## Viewuri
+
+| View | Descriere |
+|---|---|
+| `rute_complete` | Structura detaliata a fiecarei rute cu statiile aferente, ordonate |
+| `trenuri_active_pe_rute` | Trenurile active si rutele pe care sunt programate |
 
 ---
 
@@ -112,6 +134,6 @@ rute    ──< circulatii                (1-N: o ruta are multe circulatii)
 
 - **Stil:** `snake_case`
 - **Limba:** romana
-- **Exemple ID-uri:** `id_statie`, `id_tren`, `id_ruta`, `id_calatorie`
-- **Exemple coloane:** `nume_statie`, `ora_plecare`, `ora_sosire`, `tip_tren`
-- **Tabele la plural:** `statii`, `trenuri`, `rute`, `calatorii`
+- **Exemple ID-uri:** `id_statie`, `id_tren`, `id_ruta`, `id_circulatie`
+- **Exemple coloane:** `nume`, `ora_plecare`, `ora_sosire`, `tip`, `capacitate`
+- **Tabele la plural:** `statii`, `trenuri`, `rute`, `ruta_statii`, `circulatii`
