@@ -22,8 +22,8 @@ Aplicatie web pentru managementul retelei feroviare: gestionarea statiilor, tren
 |-----------------------------------|--------|
 | Initializare proiect              | ❌ Neinceput |
 | Definire schema baza de date      | ✅ Completat |
-| Populare date initiale (seed)     | ❌ Neinceput |
-| Configurare Supabase              | ❌ Neinceput |
+| Populare date initiale (seed)     | ✅ Completat|
+| Configurare Supabase              | ✅ Completat |
 | Componenta: Lista statii          | ❌ Neinceput |
 | Componenta: Lista trenuri         | ❌ Neinceput |
 | Componenta: Rute                  | ❌ Neinceput |
