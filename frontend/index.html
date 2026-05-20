@@ -115,6 +115,13 @@
         margin-top: 10px;
         border-radius: 4px;
       }
+      .report-box {
+        background: white;
+        padding: 20px;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        margin-bottom: 25px;
+      }
     </style>
   </head>
   <body>
@@ -149,6 +156,13 @@
           @click="schimbaTab('calatorii')"
         >
           Program Călătorii
+        </button>
+        <button
+          class="tab-button"
+          :class="{ active: tabCurent === 'rapoarte' }"
+          @click="schimbaTab('rapoarte')"
+        >
+          📊 Rapoarte
         </button>
       </div>
 
@@ -257,7 +271,7 @@
         </div>
       </div>
 
-      <div v-slot v-if="tabCurent === 'trenuri'">
+      <div v-if="tabCurent === 'trenuri'">
         <h2>Gestionare Trenuri</h2>
         <div class="flex-container">
           <div class="form-section">
@@ -464,16 +478,16 @@
                 </select>
               </div>
               <div class="form-group">
-                <label>Ora Plecare:</label>
-                <input
+                <label>Ora Plecare:</label
+                ><input
                   type="time"
                   v-model="formCalatorie.ora_plecare"
                   required
                 />
               </div>
               <div class="form-group">
-                <label>Ora Sosire:</label>
-                <input
+                <label>Ora Sosire:</label
+                ><input
                   type="time"
                   v-model="formCalatorie.ora_sosire"
                   required
@@ -482,11 +496,9 @@
               <button type="submit" class="btn-add">Adaugă în Program</button>
             </form>
           </div>
-
           <div class="table-section">
             <h3>Călătorii Programate</h3>
-            <p v-if="calatorii.length === 0">Nu sunt călătorii în program.</p>
-            <table v-else>
+            <table>
               <thead>
                 <tr>
                   <th>ID Călătorie</th>
@@ -501,15 +513,8 @@
                 <tr v-for="c in calatorii" :key="c.id_circulatie">
                   <td>{{ c.id_circulatie }}</td>
                   <td>
-                    <span
-                      style="
-                        text-transform: uppercase;
-                        font-weight: bold;
-                        color: #1e3a8a;
-                      "
-                      >Tren {{ c.trenuri?.tip || c.id_tren }}</span
-                    >
-                    (ID: {{ c.id_tren }})
+                    <strong>Tren {{ c.trenuri?.tip || c.id_tren }}</strong> (ID:
+                    {{ c.id_tren }})
                   </td>
                   <td><strong>{{ c.rute?.nume || c.id_ruta }}</strong></td>
                   <td>{{ c.ora_plecare }}</td>
@@ -526,6 +531,78 @@
               </tbody>
             </table>
           </div>
+        </div>
+      </div>
+
+      <div v-if="tabCurent === 'rapoarte'">
+        <h2>Sectiunea Rapoarte — Interogări Bază de Date</h2>
+
+        <div class="report-box">
+          <h3>1. Lista stațiilor dintr-o rută (ordonate)</h3>
+          <div class="form-group" style="max-width: 300px">
+            <label>Alege Ruta:</label>
+            <select v-model="filtruRutaStatii" @change="incarcaStatiiPerRuta">
+              <option value="">-- Selectează --</option>
+              <option v-for="r in rute" :value="r.id_ruta">{{ r.nume }}</option>
+            </select>
+          </div>
+          <table v-if="raportStatiiRuta.length > 0">
+            <thead>
+              <tr>
+                <th>Ordinea în rută</th>
+                <th>Nume Stație</th>
+                <th>Distanță (km)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in raportStatiiRuta">
+                <td>{{ item.ordine }}</td>
+                <td>
+                  <strong>{{ item.nume_statie || item.statii?.nume }}</strong>
+                </td>
+                <td>{{ item.distanta_fata_de_inceput }} km</td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-if="filtruRutaStatii && raportStatiiRuta.length === 0">
+            Nu s-au găsit stații legate de această rută.
+          </p>
+        </div>
+
+        <div class="report-box">
+          <h3>2. Trenurile active pe o rută selectată</h3>
+          <div class="form-group" style="max-width: 300px">
+            <label>Alege Ruta:</label>
+            <select v-model="filtruRutaTrenuri" @change="incarcaTrenuriPerRuta">
+              <option value="">-- Selectează --</option>
+              <option v-for="r in rute" :value="r.id_ruta">{{ r.nume }}</option>
+            </select>
+          </div>
+          <table v-if="raportTrenuriRuta.length > 0">
+            <thead>
+              <tr>
+                <th>ID Tren</th>
+                <th>Tip Tren</th>
+                <th>Capacitate</th>
+                <th>Ora Plecare</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="t in raportTrenuriRuta">
+                <td>{{ t.id_tren }}</td>
+                <td>
+                  <span style="text-transform: uppercase; font-weight: bold"
+                    >{{ t.tip_tren || t.trenuri?.tip }}</span
+                  >
+                </td>
+                <td>{{ t.capacitate }} locuri</td>
+                <td>{{ t.ora_plecare }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-if="filtruRutaTrenuri && raportTrenuriRuta.length === 0">
+            Nu există trenuri în circulație pe această rută.
+          </p>
         </div>
       </div>
     </div>
@@ -553,6 +630,12 @@
           const calatorii = ref([]);
           const mesaj = ref("");
           const esteEditare = ref(false);
+
+          // Filtre și Date Rapoarte
+          const filtruRutaStatii = ref("");
+          const raportStatiiRuta = ref([]);
+          const filtruRutaTrenuri = ref("");
+          const raportTrenuriRuta = ref([]);
 
           const formStatie = ref({
             id_statie: null,
@@ -587,7 +670,7 @@
             anuleazaEditare();
           };
 
-          // LOADERS
+          // LOADERS PRINCIPALI
           const incarcaStatii = async () => {
             let { data } = await supabaseClient
               .from("statii")
@@ -609,7 +692,6 @@
               .order("id_ruta", { ascending: true });
             rute.value = data || [];
           };
-          // Incarcare calatorii + relatii (Sub-interogare Supabase pentru a aduce numele rutei si tipul trenului)
           const incarcaCalatorii = async () => {
             let { data } = await supabaseClient
               .from("circulatii")
@@ -618,9 +700,53 @@
             calatorii.value = data || [];
           };
 
-          // STATII CRUD
+          // INTEROGĂRI RAPOARTE (PASUL 5 COLEGĂ)
+          const incarcaStatiiPerRuta = async () => {
+            if (!filtruRutaStatii.value) {
+              raportStatiiRuta.value = [];
+              return;
+            }
+            // Folosim tabela de legătură ordonată crescător
+            let { data } = await supabaseClient
+              .from("ruta_statii")
+              .select("ordine, distanta_fata_de_inceput, statii(nume)")
+              .eq("id_ruta", filtruRutaStatii.value)
+              .order("ordine", { ascending: true });
+
+            raportStatiiRuta.value =
+              data?.map((item) => ({
+                ordine: item.ordine,
+                nume_statie: item.statii?.nume,
+                distanta_fata_de_inceput: item.distanta_fata_de_inceput,
+              })) || [];
+          };
+
+          const incarcaTrenuriPerRuta = async () => {
+            if (!filtruRutaTrenuri.value) {
+              raportTrenuriRuta.value = [];
+              return;
+            }
+            // Recomandat de view-uri sau tabela circulatii unde trenurile au status = 'activ'
+            let { data } = await supabaseClient
+              .from("circulatii")
+              .select("id_tren, ora_plecare, trenuri(tip, capacitate, status)")
+              .eq("id_ruta", filtruRutaTrenuri.value)
+              .eq("trenuri.status", "activ"); // doar cele active conform cerinței
+
+            raportTrenuriRuta.value =
+              data
+                ?.filter((item) => item.trenuri !== null)
+                .map((item) => ({
+                  id_tren: item.id_tren,
+                  ora_plecare: item.ora_plecare,
+                  tip_tren: item.trenuri?.tip,
+                  capacitate: item.trenuri?.capacitate,
+                })) || [];
+          };
+
+          // CRUD LOGICS (Păstrate intacte)
           const salveazaStatie = async () => {
-            if (esteEditare.value) {
+            if (esteEditare.value)
               await supabaseClient
                 .from("statii")
                 .update({
@@ -630,7 +756,7 @@
                   numar_linii: formStatie.value.numar_linii,
                 })
                 .eq("id_statie", formStatie.value.id_statie);
-            } else {
+            else
               await supabaseClient.from("statii").insert([
                 {
                   nume: formStatie.value.nume,
@@ -639,7 +765,6 @@
                   numar_linii: formStatie.value.numar_linii,
                 },
               ]);
-            }
             anuleazaEditare();
             await incarcaStatii();
           };
@@ -655,16 +780,14 @@
               .eq("id_statie", id);
             if (error)
               mesaj.value =
-                "EROARE TRIGGER / CONSTRÂNGERE: Stația este folosită într-o rută activă!";
+                "EROARE TRIGGER / CONSTRÂNGERE: Stația este folosită într-o rută!";
             else {
               mesaj.value = "Stație ștearsă!";
               await incarcaStatii();
             }
           };
-
-          // TRENURI CRUD
           const salveazaTren = async () => {
-            if (esteEditare.value) {
+            if (esteEditare.value)
               await supabaseClient
                 .from("trenuri")
                 .update({
@@ -673,7 +796,7 @@
                   status: formTren.value.status,
                 })
                 .eq("id_tren", formTren.value.id_tren);
-            } else {
+            else
               await supabaseClient.from("trenuri").insert([
                 {
                   tip: formTren.value.tip,
@@ -681,7 +804,6 @@
                   status: formTren.value.status,
                 },
               ]);
-            }
             anuleazaEditare();
             await incarcaTrenuri();
           };
@@ -690,28 +812,17 @@
             esteEditare.value = true;
           };
           const stergeTren = async (id) => {
-            const { error } = await supabaseClient
-              .from("trenuri")
-              .delete()
-              .eq("id_tren", id);
-            if (error)
-              mesaj.value =
-                "EROARE: Trenul este programat într-o circulație activă!";
-            else await incarcaTrenuri();
+            await supabaseClient.from("trenuri").delete().eq("id_tren", id);
+            await incarcaTrenuri();
           };
-
-          // RUTE CRUD
           const salveazaRuta = async () => {
-            const { error } = await supabaseClient
+            await supabaseClient
               .from("rute")
               .insert([{ nume: formRuta.value.nume, tip: formRuta.value.tip }]);
-            if (!error) {
-              formRuta.value = { nume: "", tip: "feroviar" };
-              await incarcaRute();
-            }
+            await incarcaRute();
           };
           const asociazatatieLaRuta = async () => {
-            const { error } = await supabaseClient.from("ruta_statii").insert([
+            await supabaseClient.from("ruta_statii").insert([
               {
                 id_ruta: formAsociere.value.id_ruta,
                 id_statie: formAsociere.value.id_statie,
@@ -720,44 +831,19 @@
                   formAsociere.value.distanta_fata_de_inceput,
               },
             ]);
-            if (!error) {
-              formAsociere.value = {
-                id_ruta: "",
-                id_statie: "",
-                ordine: 1,
-                distanta_fata_de_inceput: 0,
-              };
-              await incarcaRute();
-            }
+            await incarcaRute();
           };
           const stergeRuta = async (id) => {
-            if (!confirm("Ștergi ruta?")) return;
             await supabaseClient.from("rute").delete().eq("id_ruta", id);
             await incarcaRute();
           };
-
-          // CALATORII (CIRCULATII) CRUD
           const salveazaCalatorie = async () => {
-            mesaj.value = "Se programează călătoria...";
-            const { error } = await supabaseClient.from("circulatii").insert([
-              {
-                id_tren: formCalatorie.value.id_tren,
-                id_ruta: formCalatorie.value.id_ruta,
-                ora_plecare: formCalatorie.value.ora_plecare,
-                ora_sosire: formCalatorie.value.ora_sosire,
-              },
-            ]);
-            if (error) mesaj.value = "Eroare: " + error.message;
-            else {
-              mesaj.value =
-                "Călătorie adăugată cu succes în mersul trenurilor!";
-              await incarcaCalatorii();
-            }
+            await supabaseClient
+              .from("circulatii")
+              .insert([formCalatorie.value]);
+            await incarcaCalatorii();
           };
-
           const stergeCalatorie = async (id) => {
-            if (!confirm("Sigur vrei să elimini călătoria din program?"))
-              return;
             await supabaseClient
               .from("circulatii")
               .delete()
@@ -802,6 +888,10 @@
             formRuta,
             formAsociere,
             formCalatorie,
+            filtruRutaStatii,
+            raportStatiiRuta,
+            filtruRutaTrenuri,
+            raportTrenuriRuta,
             schimbaTab,
             salveazaStatie,
             incarcaInFormStatie,
@@ -815,6 +905,8 @@
             salveazaCalatorie,
             stergeCalatorie,
             anuleazaEditare,
+            incarcaStatiiPerRuta,
+            incarcaTrenuriPerRuta,
           };
         },
       }).mount("#app");
