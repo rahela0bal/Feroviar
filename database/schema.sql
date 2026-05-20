@@ -119,3 +119,57 @@ CREATE TRIGGER trg_actualizeaza_lungime_ruta
 AFTER INSERT OR UPDATE ON ruta_statii
 FOR EACH ROW
 EXECUTE FUNCTION trg_fn_recalculeaza_lungime_ruta();
+
+
+-- CREEAZA PROCEDURILE STORATE --
+
+
+-- =========================================================================
+-- FUNCTIA 1: calculeaza_lungime_ruta
+-- Returnează lungimea totală ca valoare numerică (MAX din distanta_fata_de_inceput)
+-- =========================================================================
+
+CREATE OR REPLACE FUNCTION calculeaza_lungime_ruta(p_id_ruta INT)
+RETURNS NUMERIC AS $$
+DECLARE
+    v_lungime_totala NUMERIC;
+BEGIN
+    SELECT COALESCE(MAX(distanta_fata_de_inceput), 0)
+    INTO v_lungime_totala
+    FROM ruta_statii
+    WHERE id_ruta = p_id_ruta;
+
+    RETURN v_lungime_totala;
+END;
+$$ LANGUAGE plpgsql;
+
+
+-- =========================================================================
+-- FUNCTIA 2: listeaza_statii_ruta
+-- Returnează un set de rânduri cu detaliile stațiilor în ordinea corectă
+-- =========================================================================
+
+CREATE OR REPLACE FUNCTION listeaza_statii_ruta(p_id_ruta INT)
+RETURNS TABLE (
+    ordine INT,
+    id_statie INT,
+    nume_statie VARCHAR(255),
+    oras VARCHAR(255),
+    tip_statie VARCHAR(50),
+    distanta NUMERIC
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        rs.ordine,
+        s.id_statie,
+        s.nume AS nume_statie,
+        s.oras,
+        s.tip AS tip_statie,
+        rs.distanta_fata_de_inceput AS distanta
+    FROM ruta_statii rs
+    INNER JOIN statii s ON rs.id_statie = s.id_statie
+    WHERE rs.id_ruta = p_id_ruta
+    ORDER BY rs.ordine ASC;
+END;
+$$ LANGUAGE plpgsql;
