@@ -87,111 +87,237 @@
       .table-section {
         flex: 2;
       }
+
+      /* Stiluri pentru Tab-uri/Navigare */
+      .nav-tabs {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+        border-bottom: 2px solid #cbd5e1;
+        padding-bottom: 10px;
+      }
+      .tab-button {
+        padding: 10px 20px;
+        background-color: #e2e8f0;
+        color: #475569;
+        font-size: 16px;
+        transition: 0.2s;
+      }
+      .tab-button.active {
+        background-color: #1e293b;
+        color: white;
+      }
     </style>
   </head>
   <body>
     <div id="app">
       <h1>Sistem Management Feroviar</h1>
 
-      <h2>Gestionare Stații Feroviare</h2>
+      <div class="nav-tabs">
+        <button
+          class="tab-button"
+          :class="{ active: tabCurent === 'statii' }"
+          @click="schimbaTab('statii')"
+        >
+          Gestionare Stații
+        </button>
+        <button
+          class="tab-button"
+          :class="{ active: tabCurent === 'trenuri' }"
+          @click="schimbaTab('trenuri')"
+        >
+          Gestionare Trenuri
+        </button>
+      </div>
 
-      <div class="flex-container">
-        <div class="form-section">
-          <h3 v-if="esteEditare">
-            Editează Stația (ID: {{ formular.id_statie }})
-          </h3>
-          <h3 v-else>Adaugă Stație Nouă</h3>
+      <p
+        v-if="mesaj"
+        style="
+          color: #2563eb;
+          font-weight: bold;
+          background: #eff6ff;
+          padding: 10px;
+          border-radius: 4px;
+          display: inline-block;
+        "
+      >
+        {{ mesaj }}
+      </p>
 
-          <form @submit.prevent="salveazaStatie">
-            <div class="form-group">
-              <label>Nume Stație:</label>
-              <input
-                type="text"
-                v-model="formular.nume"
-                required
-                placeholder="Ex: Gara de Nord"
-              />
-            </div>
-            <div class="form-group">
-              <label>Oraș:</label>
-              <input
-                type="text"
-                v-model="formular.oras"
-                placeholder="Ex: București"
-              />
-            </div>
-            <div class="form-group">
-              <label>Tip Stație:</label>
-              <select v-model="formular.tip" required>
-                <option value="intermediara">Intermediară</option>
-                <option value="terminala">Terminală</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Număr Linii:</label>
-              <input
-                type="number"
-                v-model.number="formular.numar_linii"
-                min="1"
-                required
-              />
-            </div>
-
-            <button type="submit" class="btn-add" v-if="!esteEditare">
-              Adaugă Stație
-            </button>
-            <template v-else>
-              <button type="submit" class="btn-edit">
-                Salvează Modificările
+      <div v-if="tabCurent === 'statii'">
+        <h2>Gestionare Stații Feroviare</h2>
+        <div class="flex-container">
+          <div class="form-section">
+            <h3 v-if="esteEditare">
+              Editează Stația (ID: {{ formStatie.id_statie }})
+            </h3>
+            <h3 v-else>Adaugă Stație Nouă</h3>
+            <form @submit.prevent="salveazaStatie">
+              <div class="form-group">
+                <label>Nume Stație:</label
+                ><input type="text" v-model="formStatie.nume" required />
+              </div>
+              <div class="form-group">
+                <label>Oraș:</label
+                ><input type="text" v-model="formStatie.oras" />
+              </div>
+              <div class="form-group">
+                <label>Tip Stație:</label>
+                <select v-model="formStatie.tip" required>
+                  <option value="intermediara">Intermediară</option>
+                  <option value="terminala">Terminală</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Număr Linii:</label
+                ><input
+                  type="number"
+                  v-model.number="formStatie.numar_linii"
+                  min="1"
+                  required
+                />
+              </div>
+              <button type="submit" class="btn-add" v-if="!esteEditare">
+                Adaugă Stație
               </button>
-              <button type="button" class="btn-cancel" @click="anuleazaEditare">
-                Anulează
-              </button>
-            </template>
-          </form>
-
-          <p v-if="mesaj" style="color: #2563eb; font-weight: bold">
-            {{ mesaj }}
-          </p>
+              <template v-else>
+                <button type="submit" class="btn-edit">
+                  Salvează Modificările
+                </button>
+                <button
+                  type="button"
+                  class="btn-cancel"
+                  @click="anuleazaEditare"
+                >
+                  Anulează
+                </button>
+              </template>
+            </form>
+          </div>
+          <div class="table-section">
+            <h3>Listă Stații Existente</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Nume</th>
+                  <th>Oraș</th>
+                  <th>Tip</th>
+                  <th>Linii</th>
+                  <th>Acțiuni</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="statie in statii" :key="statie.id_statie">
+                  <td>{{ statie.id_statie }}</td>
+                  <td>{{ statie.nume }}</td>
+                  <td>{{ statie.oras || '-' }}</td>
+                  <td>{{ statie.tip }}</td>
+                  <td>{{ statie.numar_linii }}</td>
+                  <td>
+                    <button
+                      class="btn-edit"
+                      @click="incarcaInFormStatie(statie)"
+                    >
+                      Editează
+                    </button>
+                    <button
+                      class="btn-delete"
+                      @click="stergeStatie(statie.id_statie)"
+                    >
+                      Șterge
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
+      </div>
 
-        <div class="table-section">
-          <h3>Listă Stații Existente</h3>
-          <p v-if="statii.length === 0">
-            Nu există stații în baza de date sau se încarcă...
-          </p>
-          <table v-else>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Nume</th>
-                <th>Oraș</th>
-                <th>Tip</th>
-                <th>Linii</th>
-                <th>Acțiuni</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="statie in statii" :key="statie.id_statie">
-                <td>{{ statie.id_statie }}</td>
-                <td>{{ statie.nume }}</td>
-                <td>{{ statie.oras || '-' }}</td>
-                <td>{{ statie.tip }}</td>
-                <td>{{ statie.numar_linii }}</td>
-                <td>
-                  <button class="btn-edit" @click="incarcaInFormular(statie)">
-                    Editează
-                  </button>
-                  <button
-                    class="btn-delete"
-                    @click="stergeStatie(statie.id_statie)"
-                  >
-                    Șterge
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+      <div v-slot v-if="tabCurent === 'trenuri'">
+        <h2>Gestionare Trenuri</h2>
+        <div class="flex-container">
+          <div class="form-section">
+            <h3 v-if="esteEditare">
+              Editează Trenul (ID: {{ formTren.id_tren }})
+            </h3>
+            <h3 v-else>Adaugă Tren Nou</h3>
+            <form @submit.prevent="salveazaTren">
+              <div class="form-group">
+                <label>Tip Tren:</label>
+                <select v-model="formTren.tip" required>
+                  <option value="regional">Regional</option>
+                  <option value="intercity">Intercity</option>
+                  <option value="tramvai">Tramvai</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Capacitate (locuri):</label
+                ><input
+                  type="number"
+                  v-model.number="formTren.capacitate"
+                  min="1"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label>Status:</label>
+                <select v-model="formTren.status" required>
+                  <option value="activ">Activ</option>
+                  <option value="in_mentenanta">În Mentenanță</option>
+                </select>
+              </div>
+              <button type="submit" class="btn-add" v-if="!esteEditare">
+                Adaugă Tren
+              </button>
+              <template v-else>
+                <button type="submit" class="btn-edit">
+                  Salvează Modificările
+                </button>
+                <button
+                  type="button"
+                  class="btn-cancel"
+                  @click="anuleazaEditare"
+                >
+                  Anulează
+                </button>
+              </template>
+            </form>
+          </div>
+          <div class="table-section">
+            <h3>Listă Trenuri Existente</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Tip</th>
+                  <th>Capacitate</th>
+                  <th>Status</th>
+                  <th>Acțiuni</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="tren in trenuri" :key="tren.id_tren">
+                  <td>{{ tren.id_tren }}</td>
+                  <td>{{ tren.tip }}</td>
+                  <td>{{ tren.capacitate }}</td>
+                  <td>{{ tren.status }}</td>
+                  <td>
+                    <button class="btn-edit" @click="incarcaInFormTren(tren)">
+                      Editează
+                    </button>
+                    <button
+                      class="btn-delete"
+                      @click="stergeTren(tren.id_tren)"
+                    >
+                      Șterge
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -201,10 +327,8 @@
 
     <script>
       const SUPABASE_URL = "https://pllefrwkahajaybvusan.supabase.co";
-      // AICI AM PUS NOUA CHEIE PRIMITĂ DE LA FETE
       const SUPABASE_SERVICE_KEY =
         "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsbGVmcndrYWhhamF5YnZ1c2FuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTI4MDgyMiwiZXhwIjoyMDk0ODU2ODIyfQ.bDvGzkyjbbawcYxmmTRu8s-wZSTD38pO4V6biR15hOE";
-
       const supabaseClient = supabase.createClient(
         SUPABASE_URL,
         SUPABASE_SERVICE_KEY,
@@ -214,121 +338,180 @@
 
       createApp({
         setup() {
+          const tabCurent = ref("statii");
           const statii = ref([]);
+          const trenuri = ref([]);
           const mesaj = ref("");
           const esteEditare = ref(false);
 
-          const formular = ref({
+          // Formulare modele
+          const formStatie = ref({
             id_statie: null,
             nume: "",
             oras: "",
             tip: "intermediara",
             numar_linii: 1,
           });
+          const formTren = ref({
+            id_tren: null,
+            tip: "regional",
+            capacitate: 100,
+            status: "activ",
+          });
 
+          const schimbaTab = (tab) => {
+            tabCurent.value = tab;
+            mesaj.value = "";
+            anuleazaEditare();
+          };
+
+          // ================= LOGICA STATII =================
           const incarcaStatii = async () => {
-            try {
-              let { data, error } = await supabaseClient
+            let { data } = await supabaseClient
+              .from("statii")
+              .select("*")
+              .order("id_statie", { ascending: true });
+            statii.value = data || [];
+          };
+
+          const salveazaStatie = async () => {
+            mesaj.value = "Se salvează...";
+            if (esteEditare.value) {
+              await supabaseClient
                 .from("statii")
-                .select("*")
-                .order("id_statie", { ascending: true });
-              if (error) throw error;
-              statii.value = data;
-            } catch (err) {
-              mesaj.value = "Eroare la încărcare: " + err.message;
+                .update({
+                  nume: formStatie.value.nume,
+                  oras: formStatie.value.oras,
+                  tip: formStatie.value.tip,
+                  numar_linii: formStatie.value.numar_linii,
+                })
+                .eq("id_statie", formStatie.value.id_statie);
+              mesaj.value = "Stație actualizată!";
+            } else {
+              await supabaseClient.from("statii").insert([
+                {
+                  nume: formStatie.value.nume,
+                  oras: formStatie.value.oras,
+                  tip: formStatie.value.tip,
+                  numar_linii: formStatie.value.numar_linii,
+                },
+              ]);
+              mesaj.value = "Stație adăugată!";
+            }
+            anuleazaEditare();
+            await incarcaStatii();
+          };
+
+          const incarcaInFormStatie = (statie) => {
+            formStatie.value = { ...statie };
+            esteEditare.value = true;
+          };
+
+          const stergeStatie = async (id) => {
+            if (!confirm("Ștergi stația?")) return;
+            const { error } = await supabaseClient
+              .from("statii")
+              .delete()
+              .eq("id_statie", id);
+            if (error) mesaj.value = "Eroare: " + error.message;
+            else {
+              mesaj.value = "Stație ștearsă!";
+              await incarcaStatii();
             }
           };
 
-          const resetFormular = () => {
-            formular.value = {
+          // ================= LOGICA TRENURI =================
+          const incarcaTrenuri = async () => {
+            let { data } = await supabaseClient
+              .from("trenuri")
+              .select("*")
+              .order("id_tren", { ascending: true });
+            trenuri.value = data || [];
+          };
+
+          const salveazaTren = async () => {
+            mesaj.value = "Se salvează...";
+            if (esteEditare.value) {
+              await supabaseClient
+                .from("trenuri")
+                .update({
+                  tip: formTren.value.tip,
+                  capacitate: formTren.value.capacitate,
+                  status: formTren.value.status,
+                })
+                .eq("id_tren", formTren.value.id_tren);
+              mesaj.value = "Tren actualizat!";
+            } else {
+              await supabaseClient.from("trenuri").insert([
+                {
+                  tip: formTren.value.tip,
+                  capacitate: formTren.value.capacitate,
+                  status: formTren.value.status,
+                },
+              ]);
+              mesaj.value = "Tren adăugat!";
+            }
+            anuleazaEditare();
+            await incarcaTrenuri();
+          };
+
+          const incarcaInFormTren = (tren) => {
+            formTren.value = { ...tren };
+            esteEditare.value = true;
+          };
+
+          const stergeTren = async (id) => {
+            if (!confirm("Ștergi trenul?")) return;
+            const { error } = await supabaseClient
+              .from("trenuri")
+              .delete()
+              .eq("id_tren", id);
+            if (error) mesaj.value = "Eroare: " + error.message;
+            else {
+              mesaj.value = "Tren șters!";
+              await incarcaTrenuri();
+            }
+          };
+
+          // GENERAL RESETS
+          const anuleazaEditare = () => {
+            formStatie.value = {
               id_statie: null,
               nume: "",
               oras: "",
               tip: "intermediara",
               numar_linii: 1,
             };
+            formTren.value = {
+              id_tren: null,
+              tip: "regional",
+              capacitate: 100,
+              status: "activ",
+            };
             esteEditare.value = false;
-          };
-
-          const salveazaStatie = async () => {
-            try {
-              mesaj.value = "Se salvează...";
-
-              if (esteEditare.value) {
-                const { error } = await supabaseClient
-                  .from("statii")
-                  .update({
-                    nume: formular.value.nume,
-                    oras: formular.value.oras,
-                    tip: formular.value.tip,
-                    numar_linii: formular.value.numar_linii,
-                  })
-                  .eq("id_statie", formular.value.id_statie);
-
-                if (error) throw error;
-                mesaj.value = "Stație actualizată cu succes!";
-              } else {
-                const { error } = await supabaseClient.from("statii").insert([
-                  {
-                    nume: formular.value.nume,
-                    oras: formular.value.oras,
-                    tip: formular.value.tip,
-                    numar_linii: formular.value.numar_linii,
-                  },
-                ]);
-
-                if (error) throw error;
-                mesaj.value = "Stație adăugată cu succes!";
-              }
-
-              resetFormular();
-              await incarcaStatii();
-            } catch (err) {
-              mesaj.value = "Eroare la salvare: " + err.message;
-            }
-          };
-
-          const incarcaInFormular = (statie) => {
-            formular.value = { ...statie };
-            esteEditare.value = true;
-          };
-
-          const anuleazaEditare = () => {
-            resetFormular();
-            mesaj.value = "Editare herulată.";
-          };
-
-          const stergeStatie = async (id) => {
-            if (!confirm("Sigur vrei să ștergi această stație?")) return;
-            try {
-              mesaj.value = "Se șterge...";
-              const { error } = await supabaseClient
-                .from("statii")
-                .delete()
-                .eq("id_statie", id);
-
-              if (error) throw error;
-
-              mesaj.value = "Stație ștearsă cu succes!";
-              await incarcaStatii();
-            } catch (err) {
-              mesaj.value = "Eroare la ștergere: " + err.message;
-            }
           };
 
           onMounted(() => {
             incarcaStatii();
+            incarcaTrenuri();
           });
 
           return {
+            tabCurent,
             statii,
-            formular,
+            trenuri,
             mesaj,
             esteEditare,
+            formStatie,
+            formTren,
+            schimbaTab,
             salveazaStatie,
-            incarcaInFormular,
-            anuleazaEditare,
+            incarcaInFormStatie,
             stergeStatie,
+            salveazaTren,
+            incarcaInFormTren,
+            stergeTren,
+            anuleazaEditare,
           };
         },
       }).mount("#app");
