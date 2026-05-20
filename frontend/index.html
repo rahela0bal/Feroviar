@@ -88,7 +88,6 @@
         flex: 2;
       }
 
-      /* Stiluri pentru Tab-uri/Navigare */
       .nav-tabs {
         display: flex;
         gap: 10px;
@@ -102,10 +101,19 @@
         color: #475569;
         font-size: 16px;
         transition: 0.2s;
+        border: none;
+        cursor: pointer;
       }
       .tab-button.active {
         background-color: #1e293b;
         color: white;
+      }
+      .sub-form {
+        background: #f1f5f9;
+        border: 1px dashed #cbd5e1;
+        padding: 10px;
+        margin-top: 10px;
+        border-radius: 4px;
       }
     </style>
   </head>
@@ -127,6 +135,13 @@
           @click="schimbaTab('trenuri')"
         >
           Gestionare Trenuri
+        </button>
+        <button
+          class="tab-button"
+          :class="{ active: tabCurent === 'rute' }"
+          @click="schimbaTab('rute')"
+        >
+          Gestionare Rute
         </button>
       </div>
 
@@ -320,6 +335,106 @@
           </div>
         </div>
       </div>
+
+      <div v-if="tabCurent === 'rute'">
+        <h2>Gestionare Rute și Alocare Stații</h2>
+        <div class="flex-container">
+          <div class="form-section">
+            <h3>Adaugă Rută Nouă</h3>
+            <form @submit.prevent="salveazaRuta">
+              <div class="form-group">
+                <label>Nume Rută:</label
+                ><input
+                  type="text"
+                  v-model="formRuta.nume"
+                  required
+                  placeholder="Ex: R01: BUC-BVS"
+                />
+              </div>
+              <div class="form-group">
+                <label>Tip Rută:</label>
+                <select v-model="formRuta.tip" required>
+                  <option value="feroviar">Feroviar</option>
+                  <option value="urban">Urban</option>
+                </select>
+              </div>
+              <button type="submit" class="btn-add">Adaugă Rută</button>
+            </form>
+
+            <h3>Asociază Stație la Rută</h3>
+            <form @submit.prevent="asociazatatieLaRuta" class="sub-form">
+              <div class="form-group">
+                <label>Selectează Ruta:</label>
+                <select v-model="formAsociere.id_ruta" required>
+                  <option v-for="r in rute" :value="r.id_ruta">
+                    {{ r.nume }}
+                  </option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Selectează Stația:</label>
+                <select v-model="formAsociere.id_statie" required>
+                  <option v-for="s in statii" :value="s.id_statie">
+                    {{ s.nume }} ({{ s.oras }})
+                  </option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Ordine în Rută:</label
+                ><input
+                  type="number"
+                  v-model.number="formAsociere.ordine"
+                  min="1"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label>Distanță față de început (km):</label
+                ><input
+                  type="number"
+                  step="0.1"
+                  v-model.number="formAsociere.distanta_fata_de_inceput"
+                  min="0"
+                  required
+                />
+              </div>
+
+              <button type="submit" class="btn-edit">Leagă Stația</button>
+            </form>
+          </div>
+
+          <div class="table-section">
+            <h3>Listă Rute Existente</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Nume Rută</th>
+                  <th>Tip</th>
+                  <th>Lungime Totală (km)</th>
+                  <th>Acțiuni</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="ruta in rute" :key="ruta.id_ruta">
+                  <td>{{ ruta.id_ruta }}</td>
+                  <td><strong>{{ ruta.nume }}</strong></td>
+                  <td>{{ ruta.tip }}</td>
+                  <td>{{ ruta.lungime_totala || 0 }} km</td>
+                  <td>
+                    <button
+                      class="btn-delete"
+                      @click="stergeRuta(ruta.id_ruta)"
+                    >
+                      Șterge Ruta
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
 
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -341,10 +456,10 @@
           const tabCurent = ref("statii");
           const statii = ref([]);
           const trenuri = ref([]);
+          const rute = ref([]);
           const mesaj = ref("");
           const esteEditare = ref(false);
 
-          // Formulare modele
           const formStatie = ref({
             id_statie: null,
             nume: "",
@@ -358,6 +473,13 @@
             capacitate: 100,
             status: "activ",
           });
+          const formRuta = ref({ nume: "", tip: "feroviar" });
+          const formAsociere = ref({
+            id_ruta: "",
+            id_statie: "",
+            ordine: 1,
+            distanta_fata_de_inceput: 0,
+          });
 
           const schimbaTab = (tab) => {
             tabCurent.value = tab;
@@ -365,7 +487,7 @@
             anuleazaEditare();
           };
 
-          // ================= LOGICA STATII =================
+          // LOADERS
           const incarcaStatii = async () => {
             let { data } = await supabaseClient
               .from("statii")
@@ -374,6 +496,23 @@
             statii.value = data || [];
           };
 
+          const incarcaTrenuri = async () => {
+            let { data } = await supabaseClient
+              .from("trenuri")
+              .select("*")
+              .order("id_tren", { ascending: true });
+            trenuri.value = data || [];
+          };
+
+          const incarcaRute = async () => {
+            let { data } = await supabaseClient
+              .from("rute")
+              .select("*")
+              .order("id_ruta", { ascending: true });
+            rute.value = data || [];
+          };
+
+          // STATII CRUD
           const salveazaStatie = async () => {
             mesaj.value = "Se salvează...";
             if (esteEditare.value) {
@@ -386,7 +525,6 @@
                   numar_linii: formStatie.value.numar_linii,
                 })
                 .eq("id_statie", formStatie.value.id_statie);
-              mesaj.value = "Stație actualizată!";
             } else {
               await supabaseClient.from("statii").insert([
                 {
@@ -396,41 +534,32 @@
                   numar_linii: formStatie.value.numar_linii,
                 },
               ]);
-              mesaj.value = "Stație adăugată!";
             }
             anuleazaEditare();
             await incarcaStatii();
           };
-
           const incarcaInFormStatie = (statie) => {
             formStatie.value = { ...statie };
             esteEditare.value = true;
           };
 
+          // TEST VALIDARE PENTRU CLAUDIA/TRIGGER: Ștergere Stație
           const stergeStatie = async (id) => {
             if (!confirm("Ștergi stația?")) return;
             const { error } = await supabaseClient
               .from("statii")
               .delete()
               .eq("id_statie", id);
-            if (error) mesaj.value = "Eroare: " + error.message;
-            else {
+            if (error) {
+              mesaj.value = "EROARE DE SECURITATE/TRIGGER: " + error.message;
+            } else {
               mesaj.value = "Stație ștearsă!";
               await incarcaStatii();
             }
           };
 
-          // ================= LOGICA TRENURI =================
-          const incarcaTrenuri = async () => {
-            let { data } = await supabaseClient
-              .from("trenuri")
-              .select("*")
-              .order("id_tren", { ascending: true });
-            trenuri.value = data || [];
-          };
-
+          // TRENURI CRUD
           const salveazaTren = async () => {
-            mesaj.value = "Se salvează...";
             if (esteEditare.value) {
               await supabaseClient
                 .from("trenuri")
@@ -440,7 +569,6 @@
                   status: formTren.value.status,
                 })
                 .eq("id_tren", formTren.value.id_tren);
-              mesaj.value = "Tren actualizat!";
             } else {
               await supabaseClient.from("trenuri").insert([
                 {
@@ -449,31 +577,69 @@
                   status: formTren.value.status,
                 },
               ]);
-              mesaj.value = "Tren adăugat!";
             }
             anuleazaEditare();
             await incarcaTrenuri();
           };
-
           const incarcaInFormTren = (tren) => {
             formTren.value = { ...tren };
             esteEditare.value = true;
           };
-
           const stergeTren = async (id) => {
-            if (!confirm("Ștergi trenul?")) return;
+            await supabaseClient.from("trenuri").delete().eq("id_tren", id);
+            await incarcaTrenuri();
+          };
+
+          // RUTE & ASOCIERI CRUD
+          const salveazaRuta = async () => {
+            mesaj.value = "Se salvează ruta...";
             const { error } = await supabaseClient
-              .from("trenuri")
-              .delete()
-              .eq("id_tren", id);
+              .from("rute")
+              .insert([{ nume: formRuta.value.nume, tip: formRuta.value.tip }]);
             if (error) mesaj.value = "Eroare: " + error.message;
             else {
-              mesaj.value = "Tren șters!";
-              await incarcaTrenuri();
+              mesaj.value = "Rută adăugată cu succes!";
+              formRuta.value = { nume: "", tip: "feroviar" };
+              await incarcaRute();
             }
           };
 
-          // GENERAL RESETS
+          const asociazatatieLaRuta = async () => {
+            mesaj.value = "Se asociază stația...";
+            const { error } = await supabaseClient.from("ruta_statii").insert([
+              {
+                id_ruta: formAsociere.value.id_ruta,
+                id_statie: formAsociere.value.id_statie,
+                ordine: formAsociere.value.ordine,
+                distanta_fata_de_inceput:
+                  formAsociere.value.distanta_fata_de_inceput,
+              },
+            ]);
+            if (error) mesaj.value = "Eroare la asociere: " + error.message;
+            else {
+              mesaj.value =
+                "Stația a fost adăugată în rută! Lungimea totală s-a recalculat automat.";
+              formAsociere.value = {
+                id_ruta: "",
+                id_statie: "",
+                ordine: 1,
+                distanta_fata_de_inceput: 0,
+              };
+              await incarcaRute(); // reîncarcă pentru a vedea lungimea totală modificată de trigger
+            }
+          };
+
+          const stergeRuta = async (id) => {
+            if (
+              !confirm(
+                "Sigur vrei să ștergi ruta? Toate legăturile cu stațiile se vor șterge automat.",
+              )
+            )
+              return;
+            await supabaseClient.from("rute").delete().eq("id_ruta", id);
+            await incarcaRute();
+          };
+
           const anuleazaEditare = () => {
             formStatie.value = {
               id_statie: null,
@@ -494,16 +660,20 @@
           onMounted(() => {
             incarcaStatii();
             incarcaTrenuri();
+            incarcaRute();
           });
 
           return {
             tabCurent,
             statii,
             trenuri,
+            rute,
             mesaj,
             esteEditare,
             formStatie,
             formTren,
+            formRuta,
+            formAsociere,
             schimbaTab,
             salveazaStatie,
             incarcaInFormStatie,
@@ -511,6 +681,9 @@
             salveazaTren,
             incarcaInFormTren,
             stergeTren,
+            salveazaRuta,
+            asociazatatieLaRuta,
+            stergeRuta,
             anuleazaEditare,
           };
         },
