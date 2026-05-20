@@ -143,6 +143,13 @@
         >
           Gestionare Rute
         </button>
+        <button
+          class="tab-button"
+          :class="{ active: tabCurent === 'calatorii' }"
+          @click="schimbaTab('calatorii')"
+        >
+          Program Călătorii
+        </button>
       </div>
 
       <p
@@ -398,11 +405,9 @@
                   required
                 />
               </div>
-
               <button type="submit" class="btn-edit">Leagă Stația</button>
             </form>
           </div>
-
           <div class="table-section">
             <h3>Listă Rute Existente</h3>
             <table>
@@ -435,6 +440,94 @@
           </div>
         </div>
       </div>
+
+      <div v-if="tabCurent === 'calatorii'">
+        <h2>Programul Călătoriilor (Circulații Trenuri)</h2>
+        <div class="flex-container">
+          <div class="form-section">
+            <h3>Programează o Călătorie</h3>
+            <form @submit.prevent="salveazaCalatorie">
+              <div class="form-group">
+                <label>Selectează Trenul:</label>
+                <select v-model="formCalatorie.id_tren" required>
+                  <option v-for="t in trenuri" :value="t.id_tren">
+                    ID {{ t.id_tren }} - {{ t.tip }} (Status: {{ t.status }})
+                  </option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Selectează Ruta:</label>
+                <select v-model="formCalatorie.id_ruta" required>
+                  <option v-for="r in rute" :value="r.id_ruta">
+                    {{ r.nume }} ({{ r.tip }})
+                  </option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Ora Plecare:</label>
+                <input
+                  type="time"
+                  v-model="formCalatorie.ora_plecare"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label>Ora Sosire:</label>
+                <input
+                  type="time"
+                  v-model="formCalatorie.ora_sosire"
+                  required
+                />
+              </div>
+              <button type="submit" class="btn-add">Adaugă în Program</button>
+            </form>
+          </div>
+
+          <div class="table-section">
+            <h3>Călătorii Programate</h3>
+            <p v-if="calatorii.length === 0">Nu sunt călătorii în program.</p>
+            <table v-else>
+              <thead>
+                <tr>
+                  <th>ID Călătorie</th>
+                  <th>Tren</th>
+                  <th>Rută alocată</th>
+                  <th>Ora Plecare</th>
+                  <th>Ora Sosire</th>
+                  <th>Acțiuni</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="c in calatorii" :key="c.id_circulatie">
+                  <td>{{ c.id_circulatie }}</td>
+                  <td>
+                    <span
+                      style="
+                        text-transform: uppercase;
+                        font-weight: bold;
+                        color: #1e3a8a;
+                      "
+                      >Tren {{ c.trenuri?.tip || c.id_tren }}</span
+                    >
+                    (ID: {{ c.id_tren }})
+                  </td>
+                  <td><strong>{{ c.rute?.nume || c.id_ruta }}</strong></td>
+                  <td>{{ c.ora_plecare }}</td>
+                  <td>{{ c.ora_sosire }}</td>
+                  <td>
+                    <button
+                      class="btn-delete"
+                      @click="stergeCalatorie(c.id_circulatie)"
+                    >
+                      Șterge
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
 
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -457,6 +550,7 @@
           const statii = ref([]);
           const trenuri = ref([]);
           const rute = ref([]);
+          const calatorii = ref([]);
           const mesaj = ref("");
           const esteEditare = ref(false);
 
@@ -480,6 +574,12 @@
             ordine: 1,
             distanta_fata_de_inceput: 0,
           });
+          const formCalatorie = ref({
+            id_tren: "",
+            id_ruta: "",
+            ora_plecare: "08:00",
+            ora_sosire: "12:00",
+          });
 
           const schimbaTab = (tab) => {
             tabCurent.value = tab;
@@ -495,7 +595,6 @@
               .order("id_statie", { ascending: true });
             statii.value = data || [];
           };
-
           const incarcaTrenuri = async () => {
             let { data } = await supabaseClient
               .from("trenuri")
@@ -503,7 +602,6 @@
               .order("id_tren", { ascending: true });
             trenuri.value = data || [];
           };
-
           const incarcaRute = async () => {
             let { data } = await supabaseClient
               .from("rute")
@@ -511,10 +609,17 @@
               .order("id_ruta", { ascending: true });
             rute.value = data || [];
           };
+          // Incarcare calatorii + relatii (Sub-interogare Supabase pentru a aduce numele rutei si tipul trenului)
+          const incarcaCalatorii = async () => {
+            let { data } = await supabaseClient
+              .from("circulatii")
+              .select("*, trenuri(tip), rute(nume)")
+              .order("id_circulatie", { ascending: true });
+            calatorii.value = data || [];
+          };
 
           // STATII CRUD
           const salveazaStatie = async () => {
-            mesaj.value = "Se salvează...";
             if (esteEditare.value) {
               await supabaseClient
                 .from("statii")
@@ -542,17 +647,16 @@
             formStatie.value = { ...statie };
             esteEditare.value = true;
           };
-
-          // TEST VALIDARE PENTRU CLAUDIA/TRIGGER: Ștergere Stație
           const stergeStatie = async (id) => {
             if (!confirm("Ștergi stația?")) return;
             const { error } = await supabaseClient
               .from("statii")
               .delete()
               .eq("id_statie", id);
-            if (error) {
-              mesaj.value = "EROARE DE SECURITATE/TRIGGER: " + error.message;
-            } else {
+            if (error)
+              mesaj.value =
+                "EROARE TRIGGER / CONSTRÂNGERE: Stația este folosită într-o rută activă!";
+            else {
               mesaj.value = "Stație ștearsă!";
               await incarcaStatii();
             }
@@ -586,26 +690,27 @@
             esteEditare.value = true;
           };
           const stergeTren = async (id) => {
-            await supabaseClient.from("trenuri").delete().eq("id_tren", id);
-            await incarcaTrenuri();
+            const { error } = await supabaseClient
+              .from("trenuri")
+              .delete()
+              .eq("id_tren", id);
+            if (error)
+              mesaj.value =
+                "EROARE: Trenul este programat într-o circulație activă!";
+            else await incarcaTrenuri();
           };
 
-          // RUTE & ASOCIERI CRUD
+          // RUTE CRUD
           const salveazaRuta = async () => {
-            mesaj.value = "Se salvează ruta...";
             const { error } = await supabaseClient
               .from("rute")
               .insert([{ nume: formRuta.value.nume, tip: formRuta.value.tip }]);
-            if (error) mesaj.value = "Eroare: " + error.message;
-            else {
-              mesaj.value = "Rută adăugată cu succes!";
+            if (!error) {
               formRuta.value = { nume: "", tip: "feroviar" };
               await incarcaRute();
             }
           };
-
           const asociazatatieLaRuta = async () => {
-            mesaj.value = "Se asociază stația...";
             const { error } = await supabaseClient.from("ruta_statii").insert([
               {
                 id_ruta: formAsociere.value.id_ruta,
@@ -615,29 +720,49 @@
                   formAsociere.value.distanta_fata_de_inceput,
               },
             ]);
-            if (error) mesaj.value = "Eroare la asociere: " + error.message;
-            else {
-              mesaj.value =
-                "Stația a fost adăugată în rută! Lungimea totală s-a recalculat automat.";
+            if (!error) {
               formAsociere.value = {
                 id_ruta: "",
                 id_statie: "",
                 ordine: 1,
                 distanta_fata_de_inceput: 0,
               };
-              await incarcaRute(); // reîncarcă pentru a vedea lungimea totală modificată de trigger
+              await incarcaRute();
+            }
+          };
+          const stergeRuta = async (id) => {
+            if (!confirm("Ștergi ruta?")) return;
+            await supabaseClient.from("rute").delete().eq("id_ruta", id);
+            await incarcaRute();
+          };
+
+          // CALATORII (CIRCULATII) CRUD
+          const salveazaCalatorie = async () => {
+            mesaj.value = "Se programează călătoria...";
+            const { error } = await supabaseClient.from("circulatii").insert([
+              {
+                id_tren: formCalatorie.value.id_tren,
+                id_ruta: formCalatorie.value.id_ruta,
+                ora_plecare: formCalatorie.value.ora_plecare,
+                ora_sosire: formCalatorie.value.ora_sosire,
+              },
+            ]);
+            if (error) mesaj.value = "Eroare: " + error.message;
+            else {
+              mesaj.value =
+                "Călătorie adăugată cu succes în mersul trenurilor!";
+              await incarcaCalatorii();
             }
           };
 
-          const stergeRuta = async (id) => {
-            if (
-              !confirm(
-                "Sigur vrei să ștergi ruta? Toate legăturile cu stațiile se vor șterge automat.",
-              )
-            )
+          const stergeCalatorie = async (id) => {
+            if (!confirm("Sigur vrei să elimini călătoria din program?"))
               return;
-            await supabaseClient.from("rute").delete().eq("id_ruta", id);
-            await incarcaRute();
+            await supabaseClient
+              .from("circulatii")
+              .delete()
+              .eq("id_circulatie", id);
+            await incarcaCalatorii();
           };
 
           const anuleazaEditare = () => {
@@ -661,6 +786,7 @@
             incarcaStatii();
             incarcaTrenuri();
             incarcaRute();
+            incarcaCalatorii();
           });
 
           return {
@@ -668,12 +794,14 @@
             statii,
             trenuri,
             rute,
+            calatorii,
             mesaj,
             esteEditare,
             formStatie,
             formTren,
             formRuta,
             formAsociere,
+            formCalatorie,
             schimbaTab,
             salveazaStatie,
             incarcaInFormStatie,
@@ -684,6 +812,8 @@
             salveazaRuta,
             asociazatatieLaRuta,
             stergeRuta,
+            salveazaCalatorie,
+            stergeCalatorie,
             anuleazaEditare,
           };
         },
