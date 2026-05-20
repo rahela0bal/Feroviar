@@ -361,7 +361,10 @@
         <h2>Gestionare Rute și Alocare Stații</h2>
         <div class="flex-container">
           <div class="form-section">
-            <h3>Adaugă Rută Nouă</h3>
+            <h3 v-if="esteEditare">
+              Editează Ruta (ID: {{ formRuta.id_ruta }})
+            </h3>
+            <h3 v-else>Adaugă Rută Nouă</h3>
             <form @submit.prevent="salveazaRuta">
               <div class="form-group">
                 <label>Nume Rută:</label
@@ -379,7 +382,21 @@
                   <option value="urban">Urban</option>
                 </select>
               </div>
-              <button type="submit" class="btn-add">Adaugă Rută</button>
+              <button type="submit" class="btn-add" v-if="!esteEditare">
+                Adaugă Rută
+              </button>
+              <template v-else>
+                <button type="submit" class="btn-edit">
+                  Salvează Modificările
+                </button>
+                <button
+                  type="button"
+                  class="btn-cancel"
+                  @click="anuleazaEditare"
+                >
+                  Anulează
+                </button>
+              </template>
             </form>
 
             <h3>Asociază Stație la Rută</h3>
@@ -441,6 +458,9 @@
                   <td>{{ ruta.tip }}</td>
                   <td>{{ ruta.lungime_totala || 0 }} km</td>
                   <td>
+                    <button class="btn-edit" @click="incarcaInFormRuta(ruta)">
+                      Editează
+                    </button>
                     <button
                       class="btn-delete"
                       @click="stergeRuta(ruta.id_ruta)"
@@ -535,7 +555,7 @@
       </div>
 
       <div v-if="tabCurent === 'rapoarte'">
-        <h2>Sectiunea Rapoarte — Interogări Bază de Date</h2>
+        <h2>Secțiunea Rapoarte — Interogări Bază de Date</h2>
 
         <div class="report-box">
           <h3>1. Lista stațiilor dintr-o rută (ordonate)</h3>
@@ -557,9 +577,7 @@
             <tbody>
               <tr v-for="item in raportStatiiRuta">
                 <td>{{ item.ordine }}</td>
-                <td>
-                  <strong>{{ item.nume_statie || item.statii?.nume }}</strong>
-                </td>
+                <td><strong>{{ item.nume_statie }}</strong></td>
                 <td>{{ item.distanta_fata_de_inceput }} km</td>
               </tr>
             </tbody>
@@ -592,7 +610,7 @@
                 <td>{{ t.id_tren }}</td>
                 <td>
                   <span style="text-transform: uppercase; font-weight: bold"
-                    >{{ t.tip_tren || t.trenuri?.tip }}</span
+                    >{{ t.tip_tren }}</span
                   >
                 </td>
                 <td>{{ t.capacitate }} locuri</td>
@@ -611,12 +629,13 @@
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
     <script>
+      // Înlocuit SERVICE_KEY cu ANON_KEY primit de la Paula
       const SUPABASE_URL = "https://pllefrwkahajaybvusan.supabase.co";
-      const SUPABASE_SERVICE_KEY =
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsbGVmcndrYWhhamF5YnZ1c2FuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTI4MDgyMiwiZXhwIjoyMDk0ODU2ODIyfQ.bDvGzkyjbbawcYxmmTRu8s-wZSTD38pO4V6biR15hOE";
+      const SUPABASE_ANON_KEY =
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsbGVmcndrYWhhamF5YnZ1c2FuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyODA4MjIsImV4cCI6MjA5NDg1NjgyMn0.cCG1N76nE1AVvrfZnlSvUnCsYEPcuwyL66Q6VKaVttU";
       const supabaseClient = supabase.createClient(
         SUPABASE_URL,
-        SUPABASE_SERVICE_KEY,
+        SUPABASE_ANON_KEY,
       );
 
       const { createApp, ref, onMounted } = Vue;
@@ -631,7 +650,6 @@
           const mesaj = ref("");
           const esteEditare = ref(false);
 
-          // Filtre și Date Rapoarte
           const filtruRutaStatii = ref("");
           const raportStatiiRuta = ref([]);
           const filtruRutaTrenuri = ref("");
@@ -650,7 +668,7 @@
             capacitate: 100,
             status: "activ",
           });
-          const formRuta = ref({ nume: "", tip: "feroviar" });
+          const formRuta = ref({ id_ruta: null, nume: "", tip: "feroviar" });
           const formAsociere = ref({
             id_ruta: "",
             id_statie: "",
@@ -670,7 +688,7 @@
             anuleazaEditare();
           };
 
-          // LOADERS PRINCIPALI
+          // LOADERS
           const incarcaStatii = async () => {
             let { data } = await supabaseClient
               .from("statii")
@@ -700,25 +718,31 @@
             calatorii.value = data || [];
           };
 
-          // INTEROGĂRI RAPOARTE (PASUL 5 COLEGĂ)
+          // RAPOARTE CORECTATE (Join sigur pe obiecte simple sau array-uri)
           const incarcaStatiiPerRuta = async () => {
             if (!filtruRutaStatii.value) {
               raportStatiiRuta.value = [];
               return;
             }
-            // Folosim tabela de legătură ordonată crescător
             let { data } = await supabaseClient
               .from("ruta_statii")
-              .select("ordine, distanta_fata_de_inceput, statii(nume)")
+              .select("ordine, distanta_fata_de_inceput, statii (nume)")
               .eq("id_ruta", filtruRutaStatii.value)
               .order("ordine", { ascending: true });
 
             raportStatiiRuta.value =
-              data?.map((item) => ({
-                ordine: item.ordine,
-                nume_statie: item.statii?.nume,
-                distanta_fata_de_inceput: item.distanta_fata_de_inceput,
-              })) || [];
+              data?.map((item) => {
+                const statieObj = Array.isArray(item.statii)
+                  ? item.statii[0]
+                  : item.statii;
+                return {
+                  ordine: item.ordine,
+                  nume_statie: statieObj
+                    ? statieObj.nume
+                    : "Stație necunoscută",
+                  distanta_fata_de_inceput: item.distanta_fata_de_inceput,
+                };
+              }) || [];
           };
 
           const incarcaTrenuriPerRuta = async () => {
@@ -726,25 +750,29 @@
               raportTrenuriRuta.value = [];
               return;
             }
-            // Recomandat de view-uri sau tabela circulatii unde trenurile au status = 'activ'
             let { data } = await supabaseClient
               .from("circulatii")
-              .select("id_tren, ora_plecare, trenuri(tip, capacitate, status)")
+              .select("id_tren, ora_plecare, trenuri (tip, capacitate, status)")
               .eq("id_ruta", filtruRutaTrenuri.value)
-              .eq("trenuri.status", "activ"); // doar cele active conform cerinței
+              .eq("trenuri.status", "activ");
 
             raportTrenuriRuta.value =
               data
                 ?.filter((item) => item.trenuri !== null)
-                .map((item) => ({
-                  id_tren: item.id_tren,
-                  ora_plecare: item.ora_plecare,
-                  tip_tren: item.trenuri?.tip,
-                  capacitate: item.trenuri?.capacitate,
-                })) || [];
+                .map((item) => {
+                  const trenObj = Array.isArray(item.trenuri)
+                    ? item.trenuri[0]
+                    : item.trenuri;
+                  return {
+                    id_tren: item.id_tren,
+                    ora_plecare: item.ora_plecare,
+                    tip_tren: trenObj ? trenObj.tip : "N/A",
+                    capacitate: trenObj ? trenObj.capacitate : 0,
+                  };
+                }) || [];
           };
 
-          // CRUD LOGICS (Păstrate intacte)
+          // STATII CRUD
           const salveazaStatie = async () => {
             if (esteEditare.value)
               await supabaseClient
@@ -786,6 +814,8 @@
               await incarcaStatii();
             }
           };
+
+          // TRENURI CRUD
           const salveazaTren = async () => {
             if (esteEditare.value)
               await supabaseClient
@@ -815,11 +845,35 @@
             await supabaseClient.from("trenuri").delete().eq("id_tren", id);
             await incarcaTrenuri();
           };
+
+          // RUTE CRUD EXTINSĂ CU UPDATE (Cerut de Paula)
           const salveazaRuta = async () => {
-            await supabaseClient
-              .from("rute")
-              .insert([{ nume: formRuta.value.nume, tip: formRuta.value.tip }]);
+            mesaj.value = "Se salvează ruta...";
+            if (esteEditare.value && formRuta.value.id_ruta) {
+              // Modul UPDATE
+              const { error } = await supabaseClient
+                .from("rute")
+                .update({ nume: formRuta.value.nume, tip: formRuta.value.tip })
+                .eq("id_ruta", formRuta.value.id_ruta);
+              if (error)
+                mesaj.value = "Eroare la actualizare: " + error.message;
+              else mesaj.value = "Rută actualizată cu succes!";
+            } else {
+              // Modul INSERT
+              const { error } = await supabaseClient
+                .from("rute")
+                .insert([
+                  { nume: formRuta.value.nume, tip: formRuta.value.tip },
+                ]);
+              if (error) mesaj.value = "Eroare la adăugare: " + error.message;
+              else mesaj.value = "Rută adăugată cu succes!";
+            }
+            anuleazaEditare();
             await incarcaRute();
+          };
+          const incarcaInFormRuta = (ruta) => {
+            formRuta.value = { ...ruta };
+            esteEditare.value = true;
           };
           const asociazatatieLaRuta = async () => {
             await supabaseClient.from("ruta_statii").insert([
@@ -837,6 +891,8 @@
             await supabaseClient.from("rute").delete().eq("id_ruta", id);
             await incarcaRute();
           };
+
+          // CALATORII CRUD
           const salveazaCalatorie = async () => {
             await supabaseClient
               .from("circulatii")
@@ -865,6 +921,7 @@
               capacitate: 100,
               status: "activ",
             };
+            formRuta.value = { id_ruta: null, nume: "", tip: "feroviar" };
             esteEditare.value = false;
           };
 
@@ -900,6 +957,7 @@
             incarcaInFormTren,
             stergeTren,
             salveazaRuta,
+            incarcaInFormRuta,
             asociazatatieLaRuta,
             stergeRuta,
             salveazaCalatorie,
